@@ -1,193 +1,185 @@
 <?php
-require_once 'includes/config.php';
-if (isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
+session_start();
+
+/* ============================
+    Database Class
+============================ */
+class Database_demo {
+    private $host = "localhost";
+    private $db = "mobile-store"; 
+    private $user = "root";
+    private $pass = "";
+    public $conn;
+
+    public function connect() {
+        try {
+            $this->conn = new PDO(
+                "mysql:host=".$this->host.";dbname=".$this->db,
+                $this->user,
+                $this->pass
+            );
+            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            return $this->conn;
+        } catch(PDOException $e) {
+            die("Connection Error: ".$e->getMessage());
+        }
+    }
 }
 
-// Redirect if already logged in
-if (isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
+/* ============================
+    Admin Class
+============================ */
+class Admin {
+    private $conn;
+
+    public function __construct($db) {
+        $this->conn = $db;
+    }
+
+    public function login($email, $password) {
+        $query = "SELECT * FROM user_info WHERE email=? AND password=?";
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([$email, $password]);
+        return $stmt->rowCount() > 0;
+    }
 }
 
-$message = [];
+/* ============================
+    Logic Execution
+============================ */
+$db = (new Database_demo())->connect();
+$admin = new Admin($db);
+$error = "";
 
-if (isset($_POST['submit'])) {
-    $email = mysqli_real_escape_string($conn, $_POST['email']);
+if(isset($_POST['login'])) {
+    $email = $_POST['email'];
     $password = $_POST['password'];
 
-    $select = mysqli_query($conn, "SELECT * FROM user_info WHERE email='$email' LIMIT 1");
-    if ($select && mysqli_num_rows($select) > 0) {
-        $row = mysqli_fetch_assoc($select);
-        if (password_verify($password, $row['password'])) {
-            $_SESSION['user_id'] = $row['id'];
-            header('Location: index.php');
-            exit();
-        } else {
-            $message[] = 'Incorrect password!';
-        }
+    if($admin->login($email, $password)) {
+        $_SESSION['admin'] = $email;
+        header("Location: admin_panel.php");
+        exit;
     } else {
-        $message[] = 'Email not found!';
+        $error = "Invalid Email or Password!";
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | Mobile Store</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>3D Admin Login | Mobile Store</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        :root {
-            --primary: #0071e3;
-            --dark: #1d1d1f;
-            --light-bg: #f5f5f7;
-            --white: #ffffff;
-            --error: #ff3b30;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-
         body {
-            background-color: var(--light-bg);
+            /* 3D Background Gradient */
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
             display: flex;
-            justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            padding: 20px;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        /* --- Message/Toast --- */
-        .message {
-            position: fixed;
-            top: 20px;
-            background: var(--error);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 12px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-            cursor: pointer;
-            font-weight: 600;
-            z-index: 1000;
-            animation: slideDown 0.4s ease;
-        }
-
-        @keyframes slideDown {
-            from { transform: translateY(-100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        /* --- Form Container --- */
-        .form-container {
-            background: var(--white);
-            width: 100%;
-            max-width: 400px;
-            padding: 40px;
-            border-radius: 30px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.05);
-            text-align: center;
-        }
-
-        .form-container h3 {
-            font-size: 2rem;
-            font-weight: 800;
-            color: var(--dark);
-            margin-bottom: 10px;
-        }
-
-        .form-container p.subtitle {
-            color: #86868b;
-            margin-bottom: 30px;
-            font-size: 0.9rem;
-        }
-
-        .form-container input[type="email"],
-        .form-container input[type="password"] {
-            width: 100%;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 12px;
-            border: 1px solid #d2d2d7;
-            background: #fbfbfd;
-            font-size: 1rem;
-            transition: 0.3s;
-        }
-
-        .form-container input:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: var(--white);
-            box-shadow: 0 0 0 4px rgba(0,113,227,0.1);
-        }
-
-        .form-container input[type="submit"] {
-            width: 100%;
-            padding: 15px;
-            border-radius: 12px;
+        .login-card {
+            background: rgba(255, 255, 255, 0.9);
             border: none;
-            background: var(--primary);
+            border-radius: 20px;
+            /* Multi-layered shadow for 3D depth */
+            box-shadow: 
+                0 10px 30px rgba(0, 0, 0, 0.2),
+                0 20px 60px rgba(0, 0, 0, 0.1),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+            transform: perspective(1000px) rotateX(2deg);
+            transition: all 0.4s ease;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .login-card:hover {
+            transform: perspective(1000px) rotateX(0deg) translateY(-5px);
+            box-shadow: 0 30px 70px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header-3d {
+            background: #4e54c8;
+            background: -webkit-linear-gradient(to right, #8f94fb, #4e54c8);
+            background: linear-gradient(to right, #8f94fb, #4e54c8);
             color: white;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
+            border-radius: 20px 20px 0 0 !important;
+            padding: 25px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .form-control {
+            border-radius: 10px;
+            padding: 12px;
+            border: 1px solid #ddd;
             transition: 0.3s;
-            margin-top: 10px;
         }
 
-        .form-container input[type="submit"]:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
+        .form-control:focus {
+            box-shadow: 0 0 15px rgba(118, 75, 162, 0.3);
+            border-color: #764ba2;
         }
 
-        .form-container .footer-text {
-            margin-top: 25px;
-            font-size: 0.9rem;
-            color: #86868b;
-        }
-
-        .form-container a {
-            color: var(--primary);
-            text-decoration: none;
+        .btn-3d {
+            background: linear-gradient(to right, #667eea, #764ba2);
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
             font-weight: 600;
+            color: white;
+            box-shadow: 0 4px 15px rgba(118, 75, 162, 0.4);
+            transition: 0.3s;
         }
 
-        .form-container a:hover {
-            text-decoration: underline;
+        .btn-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(118, 75, 162, 0.6);
+            color: #fff;
         }
     </style>
 </head>
 <body>
 
-<?php
-if (!empty($message)) {
-    foreach ($message as $msg) {
-        echo '<div class="message" onclick="this.remove();">'.$msg.'</div>';
-    }
-}
-?>
+<div class="container d-flex justify-content-center">
+    <div class="card login-card">
+        <div class="card-header-3d">
+            <h3 class="m-0">ADMIN PORTAL</h3>
+        </div>
+        <div class="card-body p-4">
+            
+            <?php if($error): ?>
+                <div class="alert alert-danger text-center small py-2" role="alert">
+                    <?php echo $error; ?>
+                </div>
+            <?php endif; ?>
 
-<div class="form-container">
-    <form method="post">
-        <h3>Welcome Back</h3>
-        <p class="subtitle">Enter your credentials to access your account</p>
-        
-        <input type="email" name="email" required placeholder="Email Address">
-        <input type="password" name="password" required placeholder="Password">
-        
-        <input type="submit" name="submit" value="Sign In">
-        
-        <p class="footer-text">
-            Don’t have an account? <a href="register.php">Create one now</a>
-        </p>
-    </form>
+            <form method="POST">
+                <div class="mb-4">
+                    <label class="form-label text-muted small fw-bold">EMAIL ADDRESS</label>
+                    <input type="email" name="email" class="form-control" placeholder="admin@store.com" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label text-muted small fw-bold">PASSWORD</label>
+                    <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" name="login" class="btn btn-3d">Authorize Login</button>
+                </div>
+            </form>
+        </div>
+        <div class="card-footer bg-transparent border-0 text-center pb-4">
+            <small class="text-muted">Secure Access Only</small>
+        </div>
+    </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
